@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AM HOTELS - Booking System</title>
+
+  <!-- ✅ Working jsPDF and AutoTable CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+
+  <style>
+    body {
+      font-family: Arial;
+      padding: 20px;
+      margin: 0;
+      background: url('https://images.unsplash.com/photo-1600585154340-be6161a56a0c') no-repeat center center fixed;
+      background-size: cover;
+    }
+    h1 {
+      text-align: center;
+      color: #fff;
+      background: rgba(0, 0, 0, 0.6);
+      padding: 20px;
+      margin: 0;
+    }
+    .room-card {
+      border: 1px solid #ccc;
+      padding: 15px;
+      background: white;
+      margin: 15px;
+      width: 320px;
+      display: inline-block;
+      vertical-align: top;
+      border-radius: 10px;
+    }
+    .room-card img {
+      width: 100%;
+      height: 180px;
+      object-fit: cover;
+      border-radius: 5px;
+    }
+    .form-group {
+      margin-bottom: 10px;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+      color: #fff;
+    }
+    input, select {
+      width: 100%;
+      padding: 8px;
+      border-radius: 4px;
+    }
+    button {
+      padding: 10px 20px;
+      margin-top: 10px;
+      cursor: pointer;
+      background: #004080;
+      color: white;
+      border: none;
+      border-radius: 4px;
+    }
+    button:hover {
+      background: #003060;
+    }
+    #receiptBtn {
+      background: green;
+      display: none;
+    }
+    #bookingForm {
+      max-width: 600px;
+      background: rgba(0, 0, 0, 0.6);
+      padding: 20px;
+      border-radius: 10px;
+      margin: 20px auto;
+    }
+  </style>
+</head>
+<body>
+
+<h1>AM HOTELS</h1>
+
+<div id="rooms-list" style="text-align:center;">
+  <div class="room-card">
+    <img src="https://images.unsplash.com/photo-1501117716987-c8e0d7ff1b10" alt="Standard Room">
+    <h3>Standard Room</h3>
+    <p>Room No: 101</p>
+    <p>₹1500 per night</p>
+    <button onclick="selectRoom({name:'Standard Room',number:101,pricePerNight:1500,image:'https://images.unsplash.com/photo-1501117716987-c8e0d7ff1b10'})">Book Now</button>
+  </div>
+  <div class="room-card">
+    <img src="https://images.unsplash.com/photo-1560448073-46b3e36db92e" alt="Deluxe Room">
+    <h3>Deluxe Room</h3>
+    <p>Room No: 202</p>
+    <p>₹2500 per night</p>
+    <button onclick="selectRoom({name:'Deluxe Room',number:202,pricePerNight:2500,image:'https://images.unsplash.com/photo-1560448073-46b3e36db92e'})">Book Now</button>
+  </div>
+  <div class="room-card">
+    <img src="https://images.unsplash.com/photo-1600607681888-c2b56517a211" alt="Executive Suite">
+    <h3>Executive Suite</h3>
+    <p>Room No: 303</p>
+    <p>₹3500 per night</p>
+    <button onclick="selectRoom({name:'Executive Suite',number:303,pricePerNight:3500,image:'https://images.unsplash.com/photo-1600607681888-c2b56517a211'})">Book Now</button>
+  </div>
+</div>
+
+<div id="bookingForm">
+  <h2 style="color:#fff; text-align:center;">Book Your Room</h2>
+  <div class="form-group"><label>Selected Room</label><input type="text" id="selectedRoom" readonly></div>
+  <div class="form-group"><label>Room Number</label><input type="text" id="roomNumber" readonly></div>
+  <div class="form-group"><label>Full Name</label><input type="text" id="customerName"></div>
+  <div class="form-group"><label>Phone</label><input type="text" id="phoneNumber"></div>
+  <div class="form-group"><label>Check-in</label><input type="date" id="checkInDate"></div>
+  <div class="form-group"><label>Check-out</label><input type="date" id="checkOutDate"></div>
+  <div class="form-group"><label>Payment Mode</label>
+    <select id="paymentMode">
+      <option value="">--Select--</option>
+      <option value="Card">Card</option>
+      <option value="UPI">UPI</option>
+      <option value="Cash">Cash</option>
+    </select>
+  </div>
+  <div class="form-group"><label>Payment Details</label><input type="text" id="paymentDetails"></div>
+  <div class="form-group"><label>Total Price</label><input type="text" id="priceSummary" readonly></div>
+  <button onclick="confirmBooking()">Confirm Booking</button>
+  <button id="receiptBtn" onclick="downloadReceipt()">Download Receipt</button>
+</div>
+
+<script>
+let currentRoom = null;
+let lastBooking = null;
+
+document.addEventListener("DOMContentLoaded", () => {
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById("checkInDate").min = today;
+
+  document.getElementById("checkInDate").addEventListener("change", function () {
+    const nextDay = new Date(this.value);
+    nextDay.setDate(nextDay.getDate() + 1);
+    document.getElementById("checkOutDate").min = nextDay.toISOString().split('T')[0];
+    calculatePrice();
+  });
+
+  document.getElementById("checkInDate").addEventListener("input", calculatePrice);
+  document.getElementById("checkOutDate").addEventListener("input", calculatePrice);
+});
+
+function selectRoom(room) {
+  currentRoom = room;
+  document.getElementById("selectedRoom").value = room.name;
+  document.getElementById("roomNumber").value = room.number;
+  document.getElementById("receiptBtn").style.display = "none";
+  calculatePrice();
+  document.getElementById("bookingForm").scrollIntoView({ behavior: "smooth" });
+}
+
+function calculatePrice() {
+  const checkIn = new Date(document.getElementById("checkInDate").value);
+  const checkOut = new Date(document.getElementById("checkOutDate").value);
+  if (!currentRoom || isNaN(checkIn) || isNaN(checkOut) || checkOut <= checkIn) {
+    document.getElementById("priceSummary").value = "";
+    return;
+  }
+  const nights = (checkOut - checkIn) / (1000 * 60 * 60 * 24);
+  const base = currentRoom.pricePerNight * nights;
+  const tax = base * 0.18;
+  const total = base + tax;
+  document.getElementById("priceSummary").value = `₹${base.toFixed(2)} + ₹${tax.toFixed(2)} GST = ₹${total.toFixed(2)}`;
+}
+
+function confirmBooking() {
+  const name = document.getElementById("customerName").value;
+  const phone = document.getElementById("phoneNumber").value;
+  const checkIn = document.getElementById("checkInDate").value;
+  const checkOut = document.getElementById("checkOutDate").value;
+  const paymentMode = document.getElementById("paymentMode").value;
+  const paymentDetails = document.getElementById("paymentDetails").value;
+
+  if (!currentRoom || !name || !phone || !checkIn || !checkOut || !paymentMode) {
+    alert("Please fill all fields.");
+    return;
+  }
+
+  const nights = (new Date(checkOut) - new Date(checkIn)) / (1000 * 60 * 60 * 24);
+  const baseAmount = currentRoom.pricePerNight * nights;
+  const tax = baseAmount * 0.18;
+  const total = baseAmount + tax;
+
+  lastBooking = {
+    roomName: currentRoom.name,
+    roomNumber: currentRoom.number,
+    customerName: name,
+    phone,
+    checkIn,
+    checkOut,
+    nights,
+    baseAmount,
+    tax,
+    total,
+    paymentMode,
+    paymentDetails
+  };
+
+  alert("Booking Confirmed!");
+  document.getElementById("receiptBtn").style.display = "inline-block";
+}
+
+function downloadReceipt() {
+  if (!lastBooking) {
+    alert("No booking data.");
+    return;
+  }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+
+  doc.setFontSize(20);
+  doc.setTextColor('#004080');
+  doc.text("AM HOTELS Receipt", 75, 20);
+  doc.setFontSize(12);
+  doc.setTextColor('#000');
+  doc.text(`Booking Date: ${new Date().toLocaleDateString()}`, 150, 10);
+
+  doc.setFontSize(14);
+  doc.setTextColor('#004080');
+  doc.text('Customer Details', 15, 45);
+
+  doc.setFontSize(12);
+  doc.setTextColor('#000');
+  doc.text(`Name: ${lastBooking.customerName}`, 15, 55);
+  doc.text(`Phone: ${lastBooking.phone}`, 15, 63);
+  doc.text(`Room: ${lastBooking.roomName} (#${lastBooking.roomNumber})`, 15, 71);
+  doc.text(`Check-in: ${lastBooking.checkIn}`, 15, 79);
+  doc.text(`Check-out: ${lastBooking.checkOut}`, 15, 87);
+  doc.text(`Nights: ${lastBooking.nights}`, 15, 95);
+  doc.text(`Payment Mode: ${lastBooking.paymentMode}`, 15, 103);
+
+  doc.autoTable({
+    startY: 110,
+    head: [['Description', 'Amount (₹)']],
+    body: [
+      [`Room Charges (${lastBooking.nights} nights)`, lastBooking.baseAmount.toFixed(2)],
+      ['CGST (9%)', (lastBooking.tax / 2).toFixed(2)],
+      ['SGST (9%)', (lastBooking.tax / 2).toFixed(2)],
+      ['Total', lastBooking.total.toFixed(2)]
+    ],
+    theme: 'grid',
+    headStyles: { fillColor: '#004080', textColor: 255 },
+    styles: { halign: 'right' },
+    columnStyles: { 0: { halign: 'left' } }
+  });
+
+  doc.setFontSize(10);
+  doc.setTextColor('#666');
+  doc.text("Thank you for choosing AM HOTELS!", 15, doc.lastAutoTable.finalY + 15);
+  doc.save("AM_HOTELS_Receipt.pdf");
+}
+</script>
+</body>
+</html>
